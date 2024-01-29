@@ -1,7 +1,12 @@
 node_modules/
+repo_example/
 screenshot.jpg
 .env
 package-lock.json
 package.json
 README.md
 requirements.txt
+*.xlsx
+*.jpg
+*.png
+__pycache__/
