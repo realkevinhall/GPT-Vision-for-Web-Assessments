@@ -10,3 +10,4 @@ requirements.txt
 *.jpg
 *.png
 __pycache__/
+script_experiments/
