@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from utilities import capture_user_input, image_b64, setup_assessment_framework, extract_json, highlight_links, setup_openai
+from utilities import capture_user_input, image_b64, setup_assessment_framework, highlight_links, setup_openai, parse_json_objects_from_text
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, FloatRect
 
 async def main():
     # Setup App Data
@@ -43,10 +43,10 @@ async def main():
 
             Start by understanding the full content of the evaluation framework so that you know what to look for when scanning the websites. Before you begin the evaluation look at the home page, navigate to a few PLPs, and then the PDPs.
 
-            Once you are on a URL and feel confident in your answer for evaluating a certain dimension of the website, you can answer with a message in the following JSON format:
-            {"score_ready": "true", "framework_row_index": row # of the L2 being evaluated, "score": score between 1 and 4, based on the scoring guide for each L2, "scoring_notes": "Less than 3 sentences of rationale for scoring", "relevant_link": "url of site that has information to justify the score"}
+            Once you are on a URL and feel confident in your answer for evaluating a certain dimension of the website, you can provide a score. For every score you provide, I also want you to tell me where a screenshot should be captured as evidence to justify the score. To provide a score and screenshot justification for each L2 in the framework, answer with a message in the following JSON format:
+            {"score_ready": "true", "framework_row_index": row # of the L2 being evaluated, "score": score between 1 and 4, based on the scoring guide for each L2, "scoring_notes": "Less than 3 sentences of rationale for scoring", "relevant_link": "url of site that has information to justify the score", "x": starting_x_pixel_coordinate, "y": starting_y_pixel_coordinate, "width": width_of_area_to_screenshot, "height": height_of_area_to_screenshot}
 
-            When providing a relevant_url for scoring, please be as specific as possible with the URL. Provide the full path to the site page that justifies the scoring. This could be the home page, PLP, PDP, or other brand page depending on the L2 being evaluated. 
+            When providing a relevant_link for scoring, please be as specific as possible with the URL. Provide the full path to the site page that justifies the scoring. This could be the home page, PLP, PDP, or other brand page depending on the L2 being evaluated. 
 
             Although you may have some prior knowledge about the site's content from your training data, only use information from the screenshots provided when conducting scoring in the evaluation framework.
 
@@ -79,7 +79,7 @@ async def main():
 
         url = ""
         screenshot_taken = False
-        # TODO: Correct file names for highlight / clean and by framework area
+
         while continue_dialogue:
             # URL Available
             if url != "":
@@ -139,10 +139,11 @@ async def main():
             # Display OpenAI response to user
             print("GPT: ", message_text)
             
-            action_message_found, clean_json = extract_json(message_text)
-            if action_message_found:
-                if "click" in clean_json:
-                    link_text = clean_json["click"].strip()
+            api_action_messages = parse_json_objects_from_text(message_text)
+
+            for action in api_action_messages:
+                if "click" in action:
+                    link_text = action["click"].strip()
 
                     try:
                         found_element = await page.query_selector(f'.gpt-clickable:has-text("{link_text}")')
@@ -168,45 +169,64 @@ async def main():
                             "role": "user",
                             "content": "ERROR: I was unable to click that element",
                         })
+                    finally:
+                        continue
+
+                elif "url" in action:
+                    url = action["url"].strip()
                     continue
 
-                elif "url" in clean_json:
-                    url = clean_json["url"].strip()
-                    continue
-
-                elif "score_ready" in clean_json:
-                    framework_row_index = int(clean_json["framework_row_index"])
-                    score = int(clean_json["score"])
-                    scoring_notes = clean_json["scoring_notes"]
-                    relevant_url = clean_json["relevant_link"]
+                elif "score_ready" in action:
+                    framework_row_index = int(action["framework_row_index"])
+                    score = int(action["score"])
+                    scoring_notes = action["scoring_notes"]
+                    relevant_url = action["relevant_link"]
                     columns_to_update = ["Capability Score", "Scoring Notes", "Example URL"]
                     scoring_data = {"Capability Score": score, "Scoring Notes": scoring_notes, "Example URL": relevant_url}
                     assessment_framework.loc[framework_row_index, columns_to_update] = scoring_data
+
+                    clip_area = FloatRect(
+                        x= action["x"],
+                        y=action["y"],
+                        height=action["height"],
+                        width=action["width"]
+                    )
+                    await page.screenshot(
+                        path=f"assessment-output/evidence_{str(framework_row_index)}.png",
+                        full_page=False,
+                        clip= clip_area,
+                        style=".gpt-clickable { border: none!important; }"
+                    )
+
                     # TODO: Do I want users to be prompted after each scoring?
                     # Investigate if it's a better UX to allow GPT to run without interruption, or allow users to confirm action each time
                     # Is there a better way to control this flow? Can we indicate the beginning / end of a processing task?
-                    print("GPT: Do you have any questions about the scoring? Type y to ask a question or n to proceed")
+                    print("GPT: Do you have any questions about the scoring? Ask a question or type n to proceed")
                     user_message, continue_dialogue = capture_user_input("You: ")
                     if not continue_dialogue:
                         break
-                    if user_message.strip().lower() == "y" or user_message.strip().lower() == "yes":
-                        user_message, continue_dialogue = capture_user_input("You: ")
+                    if user_message.strip().lower() != "n" or user_message.strip().lower() != "no":
+                        # user_message, continue_dialogue = capture_user_input("You: ")
+                        # Append user_message with their question
                         messages.append({
                             "role": "user",
                             "content": user_message
                         })
                     continue
-               
-            user_message, continue_dialogue = capture_user_input("You: ")
 
-            messages.append({
-                "role": "user",
-                "content": user_message
-            })
+                elif "user_input_needed" in action:
+                    # TODO: Change user flow so that they're not prompted after each time a for loop is run   
+                    # Use functions to handle action methods or break statement
+                    user_message, continue_dialogue = capture_user_input("You: ")
+
+                    messages.append({
+                        "role": "user",
+                        "content": user_message
+                    })
 
         # Close browser / open streams
         await browser.close()
-        assessment_framework.to_excel(os.environ["FRAMEWORK_OUTPUT_PATH"], index=False)
+        assessment_framework.to_excel(f"assessment-output/{os.environ['FRAMEWORK_OUTPUT_PATH']}", index=False)
         
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import re
+import regex
 from playwright.async_api import Page
 from openai import OpenAI
 
@@ -66,3 +67,23 @@ def extract_json(message_text):
         return True, clean_json
     else:
         return False, ""
+    
+# Return usable JSON from potential API action messages
+def parse_json_objects_from_text(text):
+    # Define the regular expression pattern to match JSON objects
+    pattern = r'\{(?:[^{}]*|(?R))*\}'
+    
+    # Find all JSON objects in the text using the regular expression
+    json_strings = regex.findall(pattern, text)
+    
+    # Initialize an empty list to store parsed JSON objects
+    json_objects = []
+    
+    # Parse each JSON string and append the resulting object to the list
+    for json_str in json_strings:
+        try:
+            json_objects.append(json.loads(json_str))
+        except json.JSONDecodeError:
+            print(f"Error decoding JSON: {json_str}")
+    
+    return json_objects
