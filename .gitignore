@@ -11,3 +11,5 @@ requirements.txt
 *.png
 __pycache__/
 script_experiments/
+assessment-output/
+.DS_Store
