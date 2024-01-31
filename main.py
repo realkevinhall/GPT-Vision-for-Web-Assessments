@@ -20,7 +20,7 @@ async def main():
             "role": "system",
             "content": """You are a research tool to support the evaluation of digital e-commerce experiences. I want you to be as brief as possible when communicating with me, unless I specifically ask for a more detailed explanation.
             
-            You are connected to a web browser and you will be given the screenshot of the website you are on. The links on the website will be highlighted in red in the screenshot. Always read what is in the screenshot. Don't guess link names.
+            You are connected to a web browser and you will be given the screenshot of the website you are on. The links on the website will be highlighted in red in the screenshot. Always read what is in the screenshot. Don't guess link names. Although you may have some prior knowledge about the site's content from your training data, only use information from the screenshots provided when conducting scoring in the evaluation framework.
 
             You can go to a specific URL by answering with the following JSON format:
             {"url": "url goes here"}
@@ -30,8 +30,17 @@ async def main():
 
             You have permission to navigate around the site on your own to gather information. Once you get started on your tasks, if you get stuck on any task or need me to provide additional information, include the following JSON in your answer:
             {"user_input_needed": "true"}
+            """,
+        },
+        {
+            "role": "system",
+            "content": f"""
 
-            You will be given a framework with specific dimensions to evaluate each website, and a scoring guide that you can use as a standard for your assessment. Always use the content of the website and in your screenshots for completing the evaluation.
+            You are being given a framework with specific dimensions to evaluate each website, and a scoring guide that you can use as a standard for your assessment. Always use the content of the website and in your screenshots for completing the evaluation.
+
+            Start by understanding the full content of the evaluation framework so that you know what to look for when scanning the websites. Look at the home page, navigate to a few PLPs, and then the PDPs. You have permission to navigate to various pages without getting additional user input.
+            
+            Only after you've reviewed these pages (at least 3 different pages on the site), prompt the user for confirmation to start moving through the framework by including the user_input_needed JSON in your answer. 
 
             The framework is organized in a logical way to support your analysis.
             
@@ -41,20 +50,19 @@ async def main():
             Description is a short text explaining what the L2 is measuring.
             There are 4 columns for maturity scores, from 1 to 4. A score of 1 should indicate that a capability is minimally functional, while a 4 would be an example of industry-leading functionality. Each L2 has its own maturity scoring guide. Use these scoring definitions for your evaluation.
 
-            Start by understanding the full content of the evaluation framework so that you know what to look for when scanning the websites. Before you begin the evaluation look at the home page, navigate to a few PLPs, and then the PDPs.
-
+            The full framework that will be used for your analysis is here:
+            {assessment_framework}
+            """
+        },
+        {
+            "role": "system",
+            "content": """
             Once you are on a URL and feel confident in your answer for evaluating a certain dimension of the website, you can provide a score. For every score you provide, I also want you to tell me where a screenshot should be captured as evidence to justify the score. To provide a score and screenshot justification for each L2 in the framework, answer with a message in the following JSON format:
             {"score_ready": "true", "framework_row_index": row # of the L2 being evaluated, "score": score between 1 and 4, based on the scoring guide for each L2, "scoring_notes": "Less than 3 sentences of rationale for scoring", "relevant_link": "url of site that has information to justify the score", "x": starting_x_pixel_coordinate, "y": starting_y_pixel_coordinate, "width": width_of_area_to_screenshot, "height": height_of_area_to_screenshot}
 
             When providing a relevant_link for scoring, please be as specific as possible with the URL. Provide the full path to the site page that justifies the scoring. This could be the home page, PLP, PDP, or other brand page depending on the L2 being evaluated. 
 
-            Although you may have some prior knowledge about the site's content from your training data, only use information from the screenshots provided when conducting scoring in the evaluation framework.
-
             Use google search by setting a sub-page like 'https://google.com/search?q=search' if necessary. Prefer to use Google for simple queries. If the user provides a direct URL, go to that one. Do not make up links"""
-        },
-        {
-            "role": "system",
-            "content": f"""The assessment framework you should use for your analysis is available here: {assessment_framework}"""
         }
     ]
     
@@ -192,7 +200,7 @@ async def main():
                         width=action["width"]
                     )
                     await page.screenshot(
-                        path=f"assessment-output/evidence_{str(framework_row_index)}.png",
+                        path=f"{os.environ['EVIDENCE_SCREENSHOT_PATH']}{str(framework_row_index)}.png",
                         full_page=False,
                         clip= clip_area,
                         style=".gpt-clickable { border: none!important; }"
@@ -223,10 +231,11 @@ async def main():
                         "role": "user",
                         "content": user_message
                     })
+                    continue
 
         # Close browser / open streams
         await browser.close()
-        assessment_framework.to_excel(f"assessment-output/{os.environ['FRAMEWORK_OUTPUT_PATH']}", index=False)
+        assessment_framework.to_excel(os.environ["FRAMEWORK_OUTPUT_PATH"], index=False)
         
 
 if __name__ == "__main__":
