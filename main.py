@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-load_dotenv()
+load_dotenv(override=True)
 
 from utilities import capture_user_input, image_b64, setup_assessment_framework, highlight_links, setup_llm, parse_json_objects_from_text
 
@@ -94,21 +94,21 @@ async def main():
                 
                 await page.screenshot(
                     full_page=True,
-                    path="screenshot.png"
+                    path=f"{os.environ['WORKING_FILES_PATH']}screenshot.png"
                 )
 
                 await highlight_links(page)
                 
                 await page.screenshot(
                     full_page=True,
-                    path="screenshot_highlighted.png"
+                    path=f"{os.environ['WORKING_FILES_PATH']}screenshot_highlighted.png"
                 )
                 screenshot_taken = True
                 url = ""
 
             # Screenshot Available
             if screenshot_taken:
-                base64_image = image_b64("screenshot_highlighted.png")
+                base64_image = image_b64(f"{os.environ['WORKING_FILES_PATH']}screenshot_highlighted.png")
                 messages.append(HumanMessage(
                     content= [
                         {
@@ -149,12 +149,12 @@ async def main():
                             await page.wait_for_load_state("domcontentloaded")
                             await page.screenshot(
                                 full_page=True,
-                                path="screenshot.png"  
+                                path=f"{os.environ['WORKING_FILES_PATH']}screenshot.png"  
                             )
                             await highlight_links(page)
                             await page.screenshot(
                                 full_page=True,
-                                path="screenshot_highlighted.png"  
+                                path=f"{os.environ['WORKING_FILES_PATH']}screenshot_highlighted.png"  
                             )
                             screenshot_taken = True
                         else:

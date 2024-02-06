@@ -10,6 +10,8 @@ README.md
 *.png
 __pycache__/
 script_experiments/
+assessment-input/
+assessment-wip/
 assessment-output/
 .DS_Store
 .venv
