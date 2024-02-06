@@ -2,7 +2,6 @@ import base64
 import json
 import os
 import pandas as pd
-import re
 import regex
 from playwright.async_api import Page
 from openai import OpenAI
@@ -52,21 +51,10 @@ def image_b64(image):
         return base64.b64encode(f.read()).decode()
     
 # Configure Assessment Framework
-def setup_assessment_framework(framework_path):
-    framework = pd.read_excel(framework_path, sheet_name="Sheet1")
+def setup_assessment_framework(framework_path, sheet_name):
+    framework = pd.read_excel(framework_path, sheet_name=sheet_name)
     # print(framework)
     return framework
-
-# Return usable JSON from potential API action messages
-def extract_json(message_text):
-    pattern = r'\{(.*?)\}'
-    match = re.search(pattern, message_text, re.DOTALL)
-    if match:
-        api_action_message = "{" + match.group(1) + "}"
-        clean_json = json.loads(api_action_message)
-        return True, clean_json
-    else:
-        return False, ""
     
 # Return usable JSON from potential API action messages
 def parse_json_objects_from_text(text):

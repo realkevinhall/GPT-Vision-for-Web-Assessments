@@ -11,14 +11,15 @@ from playwright.async_api import async_playwright, FloatRect
 async def main():
     # Setup App Data
     client = setup_openai()
-    assessment_framework = setup_assessment_framework(os.environ['FRAMEWORK_INPUT_PATH'])
+    assessment_framework = setup_assessment_framework(os.environ['FRAMEWORK_INPUT_PATH'], os.environ['FRAMEWORK_SHEET_NAME'])
     continue_dialogue = True
     
     # Provide OpenAI with system prompt
     messages = [
         {
             "role": "system",
-            "content": """You are a research tool to support the evaluation of digital e-commerce experiences. I want you to be as brief as possible when communicating with me, unless I specifically ask for a more detailed explanation.
+            "content": """
+            You are a research tool to support the evaluation of digital e-commerce experiences. I want you to be as brief as possible when communicating with me, unless I specifically ask for a more detailed explanation.
             
             You are connected to a web browser and you will be given the screenshot of the website you are on. The links on the website will be highlighted in red in the screenshot. Always read what is in the screenshot. Don't guess link names. Although you may have some prior knowledge about the site's content from your training data, only use information from the screenshots provided when conducting scoring in the evaluation framework.
 
@@ -35,7 +36,6 @@ async def main():
         {
             "role": "system",
             "content": f"""
-
             You are being given a framework with specific dimensions to evaluate each website, and a scoring guide that you can use as a standard for your assessment. Always use the content of the website and in your screenshots for completing the evaluation.
 
             Start by understanding the full content of the evaluation framework so that you know what to look for when scanning the websites. Look at the home page, navigate to a few PLPs, and then the PDPs. You have permission to navigate to various pages without getting additional user input.
@@ -62,7 +62,8 @@ async def main():
 
             When providing a relevant_link for scoring, please be as specific as possible with the URL. Provide the full path to the site page that justifies the scoring. This could be the home page, PLP, PDP, or other brand page depending on the L2 being evaluated. 
 
-            Use google search by setting a sub-page like 'https://google.com/search?q=search' if necessary. Prefer to use Google for simple queries. If the user provides a direct URL, go to that one. Do not make up links"""
+            Use google search by setting a sub-page like 'https://google.com/search?q=search' if necessary. Prefer to use Google for simple queries. If the user provides a direct URL, go to that one. Do not make up links
+            """
         }
     ]
     
