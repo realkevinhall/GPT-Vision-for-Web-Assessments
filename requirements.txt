@@ -1,0 +1,8 @@
+openai
+pandas
+openpyxl
+python-dotenv
+pytest-playwright
+regex
+langchain
+langchain-openai

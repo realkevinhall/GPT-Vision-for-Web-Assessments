@@ -5,7 +5,6 @@ screenshot.jpg
 package-lock.json
 package.json
 README.md
-requirements.txt
 *.xlsx
 *.jpg
 *.png
@@ -13,3 +12,4 @@ __pycache__/
 script_experiments/
 assessment-output/
 .DS_Store
+.venv

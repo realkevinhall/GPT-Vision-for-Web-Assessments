@@ -4,13 +4,17 @@ import os
 import pandas as pd
 import regex
 from playwright.async_api import Page
-from openai import OpenAI
+from langchain_openai import ChatOpenAI
 
-# Setup OpenAI
-def setup_openai() -> OpenAI:
-    client = OpenAI()
-    client.api_key = os.environ['OPENAI_API_KEY']
-    return client
+# Setup LLM
+def setup_llm() -> ChatOpenAI:
+    llm = ChatOpenAI(
+        api_key=os.environ['OPENAI_API_KEY'],
+        model="gpt-4-vision-preview",
+        max_tokens=1024
+    )
+
+    return llm
 
 # Highlight links and clickable items on the page
 async def highlight_links(page: Page):

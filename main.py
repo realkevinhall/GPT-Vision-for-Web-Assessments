@@ -1,24 +1,24 @@
 import os
 import asyncio
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 load_dotenv()
 
-from utilities import capture_user_input, image_b64, setup_assessment_framework, highlight_links, setup_openai, parse_json_objects_from_text
+from utilities import capture_user_input, image_b64, setup_assessment_framework, highlight_links, setup_llm, parse_json_objects_from_text
 
 from playwright.async_api import async_playwright, FloatRect
 
 async def main():
     # Setup App Data
-    client = setup_openai()
+    client = setup_llm()
     assessment_framework = setup_assessment_framework(os.environ['FRAMEWORK_INPUT_PATH'], os.environ['FRAMEWORK_SHEET_NAME'])
     continue_dialogue = True
     
     # Provide OpenAI with system prompt
     messages = [
-        {
-            "role": "system",
-            "content": """
+        SystemMessage(content=
+            """
             You are a research tool to support the evaluation of digital e-commerce experiences. I want you to be as brief as possible when communicating with me, unless I specifically ask for a more detailed explanation.
             
             You are connected to a web browser and you will be given the screenshot of the website you are on. The links on the website will be highlighted in red in the screenshot. Always read what is in the screenshot. Don't guess link names. Although you may have some prior knowledge about the site's content from your training data, only use information from the screenshots provided when conducting scoring in the evaluation framework.
@@ -32,10 +32,9 @@ async def main():
             You have permission to navigate around the site on your own to gather information. Once you get started on your tasks, if you get stuck on any task or need me to provide additional information, include the following JSON in your answer:
             {"user_input_needed": "true"}
             """,
-        },
-        {
-            "role": "system",
-            "content": f"""
+        ),
+        SystemMessage(content=
+            f"""
             You are being given a framework with specific dimensions to evaluate each website, and a scoring guide that you can use as a standard for your assessment. Always use the content of the website and in your screenshots for completing the evaluation.
 
             Start by understanding the full content of the evaluation framework so that you know what to look for when scanning the websites. Look at the home page, navigate to a few PLPs, and then the PDPs. You have permission to navigate to various pages without getting additional user input.
@@ -53,10 +52,9 @@ async def main():
             The full framework that will be used for your analysis is here:
             {assessment_framework}
             """
-        },
-        {
-            "role": "system",
-            "content": """
+        ),
+        SystemMessage(content=
+            """
             Once you are on a URL and feel confident in your answer for evaluating a certain dimension of the website, you can provide a score. For every score you provide, I also want you to tell me where a screenshot should be captured as evidence to justify the score. To provide a score and screenshot justification for each L2 in the framework, answer with a message in the following JSON format:
             {"score_ready": "true", "framework_row_index": row # of the L2 being evaluated, "score": score between 1 and 4, based on the scoring guide for each L2, "scoring_notes": "Less than 3 sentences of rationale for scoring", "relevant_link": "url of site that has information to justify the score", "x": starting_x_pixel_coordinate, "y": starting_y_pixel_coordinate, "width": width_of_area_to_screenshot, "height": height_of_area_to_screenshot}
 
@@ -64,7 +62,7 @@ async def main():
 
             Use google search by setting a sub-page like 'https://google.com/search?q=search' if necessary. Prefer to use Google for simple queries. If the user provides a direct URL, go to that one. Do not make up links
             """
-        }
+        )
     ]
     
     # Setup Playwright
@@ -81,10 +79,7 @@ async def main():
 
         prompt, continue_dialogue = capture_user_input("You: ")
 
-        messages.append({
-            "role": "user",
-            "content": prompt
-        })
+        messages.append(HumanMessage(content=prompt))
 
         url = ""
         screenshot_taken = False
@@ -114,9 +109,8 @@ async def main():
             # Screenshot Available
             if screenshot_taken:
                 base64_image = image_b64("screenshot_highlighted.png")
-                messages.append({
-                    "role": "user",
-                    "content": [
+                messages.append(HumanMessage(
+                    content= [
                         {
                             "type": "image_url",
                             "image_url": f"data:image/jpeg;base64,{base64_image}"
@@ -126,29 +120,22 @@ async def main():
                             "text": "Here's the screenshot of the website you are on right now. You can click on links with {\"click\": \"Link text\"} or you can crawl to another URL if this one is incorrect. If you find the answer to the user's question, you can respond normally."
                         }
                     ]
-                })
+                ))
                 screenshot_taken = False
             
             # Query OpenAI services with user's most recent messages
-            response = client.chat.completions.create(
-                model="gpt-4-vision-preview",
-                max_tokens=1024,
-                messages=messages
-            )
-
+            response = client.invoke(messages)
             # Extract text from OpenAI response
-            message = response.choices[0].message
-            message_text = message.content
+            ai_message_text = response.content
 
-            messages.append({
-                "role": "assistant",
-                "content": message_text
-            })
+            messages.append(AIMessage(
+                content= ai_message_text
+            ))
             
             # Display OpenAI response to user
-            print("GPT: ", message_text)
+            print("GPT: ", ai_message_text)
             
-            api_action_messages = parse_json_objects_from_text(message_text)
+            api_action_messages = parse_json_objects_from_text(ai_message_text)
 
             for action in api_action_messages:
                 if "click" in action:
@@ -174,10 +161,7 @@ async def main():
                             raise Exception("Can't find link")
                     except Exception as e:
                         print("ERROR: Clicking failed", e)
-                        messages.append({
-                            "role": "user",
-                            "content": "ERROR: I was unable to click that element",
-                        })
+                        messages.append(HumanMessage(content= "ERROR: I was unable to click that element"))
                     finally:
                         continue
 
@@ -217,10 +201,7 @@ async def main():
                     if user_message.strip().lower() != "n" or user_message.strip().lower() != "no":
                         # user_message, continue_dialogue = capture_user_input("You: ")
                         # Append user_message with their question
-                        messages.append({
-                            "role": "user",
-                            "content": user_message
-                        })
+                        messages.append(HumanMessage(content= user_message))
                     continue
 
                 elif "user_input_needed" in action:
@@ -228,10 +209,7 @@ async def main():
                     # Use functions to handle action methods or break statement
                     user_message, continue_dialogue = capture_user_input("You: ")
 
-                    messages.append({
-                        "role": "user",
-                        "content": user_message
-                    })
+                    messages.append(HumanMessage(content= user_message))
                     continue
 
         # Close browser / open streams
